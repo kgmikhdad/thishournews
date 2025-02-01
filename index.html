@@ -1,0 +1,93 @@
+# Install pytrends if not already installed.
+!pip install pytrends
+
+from pytrends.request import TrendReq
+from openai import OpenAI  # Using the OpenAI client provided by OpenRouter
+
+# -------------------------------
+# STEP 1: Fetch Google Trends Data (India-Specific)
+# -------------------------------
+# Initialize connection to Google Trends.
+pytrend = TrendReq(hl='en-IN', tz=330)
+
+# Fetch trending searches for India.
+trending_searches_df = pytrend.trending_searches(pn='india')
+print("Trending Searches (India):")
+print(trending_searches_df.head())
+
+# Select the top trending topic.
+topic = trending_searches_df.iloc[0, 0]
+print("\nSelected Trending Topic:", topic)
+
+# -------------------------------
+# STEP 2: Build the Prompt for the News Article
+# -------------------------------
+prompt = (
+    f"Write a detailed, engaging, and informative news article about the recent developments related to '{topic}' in India. "
+    "Include context, background information, quotes, and an analysis of potential impacts. "
+    "Ensure the tone is journalistic and neutral, and focus on how this news affects people in India."
+)
+
+# For debugging, print the prompt.
+print("\nPrompt for the API:\n", prompt)
+
+# -------------------------------
+# STEP 3: Generate the News Article via OpenRouter (DeepSeek)
+# -------------------------------
+# Initialize the OpenRouter client.
+client = OpenAI(
+  base_url="https://openrouter.ai/api/v1",
+  api_key="YOUR_API_KEY",  # Replace with your actual API key.
+)
+
+# Create a chat completion using the DeepSeek model.
+completion = client.chat.completions.create(
+  extra_headers={
+    "HTTP-Referer": "<YOUR_SITE_URL>",  # Optional: Replace with your site URL or remove.
+    "X-Title": "<YOUR_SITE_NAME>",       # Optional: Replace with your site name or remove.
+  },
+  model="deepseek/deepseek-r1:free",
+  messages=[
+    {
+      "role": "user",
+      "content": prompt
+    }
+  ]
+)
+
+# -------------------------------
+# STEP 4: Output the Generated News Article & Save as HTML
+# -------------------------------
+if completion is not None and hasattr(completion, "choices") and completion.choices:
+    article_content = completion.choices[0].message.content
+    print("\nGenerated News Article:\n")
+    print(article_content)
+    
+    # Create an HTML file
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Trending News - {topic}</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; }}
+            h1 {{ color: #333; }}
+            .content {{ margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <h1>{topic}</h1>
+        <div class="content">{article_content}</div>
+    </body>
+    </html>
+    """
+    
+    # Save to an index.html file
+    with open("index.html", "w", encoding="utf-8") as file:
+        file.write(html_content)
+    print("\nHTML file 'index.html' has been created successfully.")
+else:
+    print("No valid completion was returned. Full response:")
+    print(completion)
